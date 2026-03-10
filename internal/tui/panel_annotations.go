@@ -40,16 +40,18 @@ func renderAnnotationsPanel(m Model, width, height int) string {
 			sb.WriteString(annotationCommentStyle.Render(item) + "\n")
 			if a.Message != "" {
 				msg := fmt.Sprintf("  %q", a.Message)
-				sb.WriteString(dimStyle.Render(msg) + "\n\n")
+				sb.WriteString(dimStyle.Width(width).Render(msg) + "\n")
 			}
+			sb.WriteString("\n")
 
 		case annotation.Replace:
 			item = fmt.Sprintf("  [%s] REPLACE", rangeStr)
 			sb.WriteString(annotationReplaceStyle.Render(item) + "\n")
 			if a.Message != "" {
 				msg := fmt.Sprintf("  %q", a.Message)
-				sb.WriteString(dimStyle.Render(msg) + "\n\n")
+				sb.WriteString(dimStyle.Width(width).Render(msg) + "\n")
 			}
+			sb.WriteString("\n")
 		}
 	}
 
