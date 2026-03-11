@@ -156,9 +156,23 @@ func (m Model) handleNormalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.pendingOp = "r"
 		m.visualStart = m.cursor
 
+	case keyStr == "u":
+		if len(m.annotations) > 0 {
+			m.annotations = m.annotations[:len(m.annotations)-1]
+			if m.annotationCursor >= len(m.annotations) {
+				m.annotationCursor = max(0, len(m.annotations)-1)
+			}
+		}
+
 	case key.Matches(msg, m.keyMap.Diff):
 		m.mode = ModeDiff
 		m.diffScrollOffset = 0
+		for i, l := range m.diffLines {
+			if strings.HasPrefix(l, "@@") {
+				m.diffScrollOffset = i
+				break
+			}
+		}
 
 	case key.Matches(msg, m.keyMap.FocusAnnotations):
 		m.mode = ModeAnnotations
@@ -373,7 +387,7 @@ func (m Model) handleVisualKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.textInput.Focus()
 		return m, textinput.Blink
 
-	case key.Matches(msg, m.keyMap.Delete):
+	case key.Matches(msg, m.keyMap.Delete), msg.String() == "d":
 		r := visualRange(m.visualStart, m.cursor)
 		m.annotations = append(m.annotations, annotation.Annotation{
 			Type:  annotation.Delete,

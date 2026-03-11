@@ -68,7 +68,12 @@ func (m Model) View() string {
 // renderHeader renders the top bar with session and mode info.
 func (m Model) renderHeader() string {
 	left := fmt.Sprintf("  pluto — Plan Review  [session: %s]", m.sessionID)
-	right := fmt.Sprintf("[%s | %d lines]  ", m.mode.String(), len(m.planLines))
+	var right string
+	if len(m.annotations) > 0 {
+		right = fmt.Sprintf("[%s | %d lines | %d ann]  ", m.mode.String(), len(m.planLines), len(m.annotations))
+	} else {
+		right = fmt.Sprintf("[%s | %d lines]  ", m.mode.String(), len(m.planLines))
+	}
 
 	gap := m.windowWidth - len(left) - len(right)
 	if gap < 0 {
@@ -166,10 +171,10 @@ func (m Model) renderStatusBar() string {
 		if m.pendingOp != "" {
 			bindings = fmt.Sprintf("  [%s%s_]  j/k/w/b/G:range  esc:cancel", m.pendingOp, m.countStr)
 		} else {
-			bindings = "  k/j:scroll  w/b:word  {/}:para  v:char-select  V:line-select  d/c/r:op  D:diff  A:approve  R:reject  ?:help"
+			bindings = "  k/j:scroll  w/b:word  {/}:para  v:char-select  V:line-select  d/c/r:op  D:diff  u:undo  A:approve  R:reject  ?:help"
 		}
 	case ModeVisual:
-		bindings = "  k/j/w/b/{/}:extend  c:comment  x:delete  r:replace  esc:cancel"
+		bindings = "  k/j/w/b/{/}:extend  c:comment  x/d:delete  r:replace  esc:cancel"
 	case ModeVisualChar:
 		bindings = "  h/l:char  w/b:word  c:comment  x:delete  r:replace  j/k:→line  esc:cancel"
 	case ModeDiff:

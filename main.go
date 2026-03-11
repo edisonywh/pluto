@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -125,24 +124,43 @@ func runListMode() {
 		fmt.Fprintln(os.Stderr, "pluto: cannot determine home directory")
 		os.Exit(1)
 	}
-	plansDir := filepath.Join(home, ".claude", "plans")
+	historyDir := filepath.Join(home, ".pluto", "history")
 
-	entries, err := os.ReadDir(plansDir)
+	sessions, err := os.ReadDir(historyDir)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "pluto: cannot read plans directory: %v\n", err)
+		fmt.Fprintf(os.Stderr, "pluto: cannot read history directory: %v\n", err)
 		os.Exit(1)
 	}
 
 	var files []tui.PlanFile
-	for _, e := range entries {
-		if !e.IsDir() && strings.HasSuffix(e.Name(), ".md") {
-			info, _ := e.Info()
-			files = append(files, tui.PlanFile{
-				Name:    e.Name(),
-				Path:    filepath.Join(plansDir, e.Name()),
-				ModTime: info.ModTime(),
-			})
+	for _, session := range sessions {
+		if !session.IsDir() {
+			continue
 		}
+		sessionPath := filepath.Join(historyDir, session.Name())
+		revisions, err := os.ReadDir(sessionPath)
+		if err != nil {
+			continue
+		}
+		// Find the last non-dir entry (highest numbered revision).
+		var latestEntry os.DirEntry
+		for _, rev := range revisions {
+			if !rev.IsDir() {
+				latestEntry = rev
+			}
+		}
+		if latestEntry == nil {
+			continue
+		}
+		info, err := latestEntry.Info()
+		if err != nil {
+			continue
+		}
+		files = append(files, tui.PlanFile{
+			Name:    session.Name(),
+			Path:    filepath.Join(sessionPath, latestEntry.Name()),
+			ModTime: info.ModTime(),
+		})
 	}
 
 	sort.Slice(files, func(i, j int) bool {

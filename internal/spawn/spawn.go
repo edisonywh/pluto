@@ -25,7 +25,7 @@ func detectTerminal() string {
 	if _, err := os.Stat("/Applications/Ghostty.app"); err == nil {
 		return "ghostty"
 	}
-	if _, err := os.Stat("/Applications/iTerm.app"); err == nil {
+	if _, err := os.Stat("/Applications/iTerm2.app"); err == nil {
 		return "iterm2"
 	}
 	return "terminal"
