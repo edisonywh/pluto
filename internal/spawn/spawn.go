@@ -33,11 +33,11 @@ func detectTerminal() string {
 
 func openGhosttyWindow(plutoPath, inFile, outFile string) error {
 	return exec.Command("open", "-na", "Ghostty.app", "--args",
-		"-e", plutoPath, "--review", inFile, outFile).Start()
+		"-e", plutoPath, "review", "--in", inFile, "--out", outFile).Start()
 }
 
 func openITermWindow(plutoPath, inFile, outFile string) error {
-	cmd := fmt.Sprintf("%s --review %s %s", plutoPath, inFile, outFile)
+	cmd := fmt.Sprintf("%s review --in %s --out %s", plutoPath, inFile, outFile)
 	script := fmt.Sprintf(`tell application "iTerm2"
 		create window with default profile command "%s"
 	end tell`, escapeAppleScript(cmd))
@@ -45,7 +45,7 @@ func openITermWindow(plutoPath, inFile, outFile string) error {
 }
 
 func openTerminalAppWindow(plutoPath, inFile, outFile string) error {
-	cmd := fmt.Sprintf(`%s --review %s %s; exit`, plutoPath, inFile, outFile)
+	cmd := fmt.Sprintf(`%s review --in %s --out %s; exit`, plutoPath, inFile, outFile)
 	script := fmt.Sprintf(
 		`tell application "Terminal"
 			activate

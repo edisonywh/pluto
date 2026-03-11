@@ -6,8 +6,8 @@ Pluto hooks into Claude Code's `PreToolUse` permission system to intercept `Exit
 
 ## How It Works
 
-1. Claude Code calls `ExitPlanMode` and pipes a JSON payload to pluto via stdin.
-2. Pluto writes the plan to a temp file and opens a new terminal window running itself in `--review` mode.
+1. Claude Code calls `ExitPlanMode` and pipes a JSON payload to `pluto review` via stdin.
+2. Pluto writes the plan to a temp file and opens a new terminal window running itself in review mode.
 3. The review window shows the plan in a scrollable, vim-navigable TUI.
 4. You approve or reject. If you reject, any annotations you added are passed back to Claude as feedback.
 5. The hook process reads the result and returns the decision to Claude Code.
@@ -51,7 +51,8 @@ Add pluto as a `PreToolUse` hook in your Claude Code settings (`~/.claude/settin
         "hooks": [
           {
             "type": "command",
-            "command": "pluto"
+            "command": "pluto review",
+            "timeout": 300
           }
         ]
       }
@@ -60,9 +61,18 @@ Add pluto as a `PreToolUse` hook in your Claude Code settings (`~/.claude/settin
 }
 ```
 
-Claude Code will pipe the plan JSON to pluto on stdin whenever it tries to exit plan mode.
+Claude Code will pipe the plan JSON to `pluto review` on stdin whenever it tries to exit plan mode.
 
-## Usage
+## CLI
+
+```
+pluto review [file]   Review a plan. With no args and piped stdin: hook mode.
+                      With a file path: open that plan for review.
+pluto list            Interactively browse saved plans in ~/.claude/plans/
+pluto help            Show help
+```
+
+## Key Bindings
 
 When Claude presents a plan, a new terminal window opens automatically. Navigate and annotate with vim-style keys:
 
@@ -93,6 +103,15 @@ When Claude presents a plan, a new terminal window opens automatically. Navigate
 | `r` | Mark selection as replaced |
 | `esc` | Cancel selection |
 | `enter` | Confirm annotation |
+| `tab` | Focus annotations pane |
+
+### Annotations Pane
+
+| Key | Action |
+|-----|--------|
+| `j` / `k` | Navigate annotations |
+| `x` / `dd` | Delete annotation |
+| `tab` / `esc` | Back to plan |
 
 ### Decisions
 
@@ -101,13 +120,13 @@ When Claude presents a plan, a new terminal window opens automatically. Navigate
 | `A` | Approve plan (Claude proceeds) |
 | `R` | Reject plan (Claude revises, annotations sent as feedback) |
 | `D` | Toggle diff view (shows changes from previous plan revision) |
-| `?` | Toggle full help |
+| `?` | Toggle full key binding help |
 
 ## Architecture
 
 ```
 pluto
-├── main.go                  # Entry point; dispatches to hook or review mode
+├── main.go                  # Entry point; Cobra CLI with review and list subcommands
 ├── internal/
 │   ├── hook/                # Claude Code hook JSON encoding (allow/deny)
 │   ├── tui/                 # Bubbletea TUI model and keymap
@@ -118,4 +137,4 @@ pluto
 │   └── spawn/               # Terminal detection and window spawning
 ```
 
-The two modes share no global state — they communicate only through temp files, making the inter-process handoff simple and debuggable.
+The hook mode and the review window share no global state — they communicate only through temp files, making the inter-process handoff simple and debuggable.

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/spf13/cobra"
 	"pluto/internal/annotation"
 	"pluto/internal/diff"
 	"pluto/internal/handoff"
@@ -21,23 +22,66 @@ import (
 )
 
 func main() {
-	// Internal: review mode spawned by hook mode in a separate terminal.
-	if len(os.Args) == 4 && os.Args[1] == "--review" {
-		runReviewMode(os.Args[2], os.Args[3])
-		return
+	rootCmd := &cobra.Command{
+		Use:   "pluto",
+		Short: "Vim-style plan reviewer for Claude Code",
+		Long: `Pluto hooks into Claude Code's PreToolUse permission system to intercept
+ExitPlanMode calls, letting you read, annotate, approve or reject plans
+before any code is written.`,
 	}
-	// pluto list — interactive plan picker.
-	if len(os.Args) == 2 && os.Args[1] == "list" {
-		runListMode()
-		return
+
+	var handoffIn, handoffOut string
+
+	reviewCmd := &cobra.Command{
+		Use:   "review [file]",
+		Short: "Review a plan — pipe stdin for hook mode, pass a file for standalone",
+		Long: `Review a Claude Code plan.
+
+Hook mode (used in Claude Code settings):
+  pluto review          — reads ExitPlanMode JSON from stdin
+
+Standalone mode:
+  pluto review plan.md  — opens a saved plan file for review`,
+		Args: cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			// Internal: spawned by hook mode to show TUI in a new terminal window.
+			if handoffIn != "" && handoffOut != "" {
+				runReviewMode(handoffIn, handoffOut)
+				return nil
+			}
+			// Standalone: a plan file was provided.
+			if len(args) == 1 {
+				runStandaloneMode(args[0])
+				return nil
+			}
+			// Hook mode: stdin must be a pipe (called by Claude Code).
+			runHookMode()
+			return nil
+		},
+		SilenceUsage: true,
 	}
-	// pluto <file> — standalone review of a plan file.
-	if len(os.Args) == 2 && !strings.HasPrefix(os.Args[1], "-") {
-		runStandaloneMode(os.Args[1])
-		return
+
+	reviewCmd.Flags().StringVar(&handoffIn, "in", "", "")
+	reviewCmd.Flags().StringVar(&handoffOut, "out", "", "")
+	_ = reviewCmd.Flags().MarkHidden("in")
+	_ = reviewCmd.Flags().MarkHidden("out")
+
+	listCmd := &cobra.Command{
+		Use:   "list",
+		Short: "Browse and open saved plan files interactively",
+		Long:  `Interactively browse all plan files saved in ~/.claude/plans/ and open one for review.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			runListMode()
+			return nil
+		},
+		SilenceUsage: true,
 	}
-	// Default: hook mode (called by Claude Code).
-	runHookMode()
+
+	rootCmd.AddCommand(reviewCmd, listCmd)
+
+	if err := rootCmd.Execute(); err != nil {
+		os.Exit(1)
+	}
 }
 
 func runStandaloneMode(planPath string) {
@@ -135,7 +179,7 @@ func runHookMode() {
 	if fi, err := os.Stdin.Stat(); err == nil && (fi.Mode()&os.ModeCharDevice) != 0 {
 		fmt.Fprintln(os.Stderr, "pluto: must be invoked as a Claude Code PreToolUse hook, not run directly")
 		fmt.Fprintln(os.Stderr, "  Add to ~/.claude/settings.json:")
-		fmt.Fprintln(os.Stderr, `  {"hooks":{"PreToolUse":[{"matcher":"ExitPlanMode","hooks":[{"type":"command","command":"pluto","timeout":300}]}]}}`)
+		fmt.Fprintln(os.Stderr, `  {"hooks":{"PreToolUse":[{"matcher":"ExitPlanMode","hooks":[{"type":"command","command":"pluto review","timeout":300}]}]}}`)
 		os.Exit(1)
 	}
 
