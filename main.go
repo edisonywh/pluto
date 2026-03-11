@@ -26,6 +26,14 @@ func main() {
 }
 
 func runHookMode() {
+	// Bail out early if stdin is a TTY (i.e. run directly, not as a hook).
+	if fi, err := os.Stdin.Stat(); err == nil && (fi.Mode()&os.ModeCharDevice) != 0 {
+		fmt.Fprintln(os.Stderr, "pluto: must be invoked as a Claude Code PreToolUse hook, not run directly")
+		fmt.Fprintln(os.Stderr, "  Add to ~/.claude/settings.json:")
+		fmt.Fprintln(os.Stderr, `  {"hooks":{"PreToolUse":[{"matcher":"ExitPlanMode","hooks":[{"type":"command","command":"pluto","timeout":300}]}]}}`)
+		os.Exit(1)
+	}
+
 	// Read the PermissionRequest JSON from stdin (pipe from Claude Code).
 	var input hook.PermissionRequest
 	if err := json.NewDecoder(os.Stdin).Decode(&input); err != nil {
