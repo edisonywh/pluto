@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
+	"sort"
+	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -18,11 +21,113 @@ import (
 )
 
 func main() {
+	// Internal: review mode spawned by hook mode in a separate terminal.
 	if len(os.Args) == 4 && os.Args[1] == "--review" {
 		runReviewMode(os.Args[2], os.Args[3])
 		return
 	}
+	// pluto list — interactive plan picker.
+	if len(os.Args) == 2 && os.Args[1] == "list" {
+		runListMode()
+		return
+	}
+	// pluto <file> — standalone review of a plan file.
+	if len(os.Args) == 2 && !strings.HasPrefix(os.Args[1], "-") {
+		runStandaloneMode(os.Args[1])
+		return
+	}
+	// Default: hook mode (called by Claude Code).
 	runHookMode()
+}
+
+func runStandaloneMode(planPath string) {
+	data, err := os.ReadFile(planPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "pluto: %v\n", err)
+		os.Exit(1)
+	}
+
+	tty, err := os.OpenFile("/dev/tty", os.O_RDWR, 0)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "pluto: cannot open /dev/tty")
+		os.Exit(1)
+	}
+	defer tty.Close()
+
+	m := tui.NewModel(string(data), "", filepath.Base(planPath))
+	p := tea.NewProgram(m,
+		tea.WithInput(tty),
+		tea.WithOutput(tty),
+		tea.WithAltScreen(),
+	)
+
+	finalModel, err := p.Run()
+	if err != nil {
+		os.Exit(1)
+	}
+
+	result := finalModel.(tui.Model).Result()
+	if result.Decision == tui.Reject {
+		if len(result.Annotations) > 0 {
+			fmt.Print(annotation.Format(result.Annotations))
+		}
+		os.Exit(1)
+	}
+}
+
+func runListMode() {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "pluto: cannot determine home directory")
+		os.Exit(1)
+	}
+	plansDir := filepath.Join(home, ".claude", "plans")
+
+	entries, err := os.ReadDir(plansDir)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "pluto: cannot read plans directory: %v\n", err)
+		os.Exit(1)
+	}
+
+	var files []tui.PlanFile
+	for _, e := range entries {
+		if !e.IsDir() && strings.HasSuffix(e.Name(), ".md") {
+			info, _ := e.Info()
+			files = append(files, tui.PlanFile{
+				Name:    e.Name(),
+				Path:    filepath.Join(plansDir, e.Name()),
+				ModTime: info.ModTime(),
+			})
+		}
+	}
+
+	sort.Slice(files, func(i, j int) bool {
+		return files[i].ModTime.After(files[j].ModTime)
+	})
+
+	tty, err := os.OpenFile("/dev/tty", os.O_RDWR, 0)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "pluto: cannot open /dev/tty")
+		os.Exit(1)
+	}
+
+	lm := tui.NewListModel(files)
+	p := tea.NewProgram(lm,
+		tea.WithInput(tty),
+		tea.WithOutput(tty),
+		tea.WithAltScreen(),
+	)
+
+	finalModel, err := p.Run()
+	tty.Close()
+	if err != nil {
+		os.Exit(1)
+	}
+
+	selected := finalModel.(tui.ListModel).Selected()
+	if selected != "" {
+		runStandaloneMode(selected)
+	}
 }
 
 func runHookMode() {
