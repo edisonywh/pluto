@@ -81,11 +81,4 @@ var (
 	annotationReplaceStyle = lipgloss.NewStyle().
 				Foreground(colorHunk)
 
-	// Help text
-	helpKeyStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("252")).
-			Bold(true)
-
-	helpDescStyle = lipgloss.NewStyle().
-			Foreground(colorDim)
 )

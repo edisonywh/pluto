@@ -23,21 +23,27 @@ func renderAnnotationsPanel(m Model, width, height int) string {
 		return sb.String()
 	}
 
-	for _, a := range m.annotations {
-		var style strings.Builder
-		_ = style
-
+	for i, a := range m.annotations {
+		isSelected := m.mode == ModeAnnotations && i == m.annotationCursor
 		rangeStr := a.Range.String()
 
 		var item string
 		switch a.Type {
 		case annotation.Delete:
 			item = fmt.Sprintf("  [%s] DELETE", rangeStr)
-			sb.WriteString(annotationDeleteStyle.Render(item) + "\n\n")
+			if isSelected {
+				sb.WriteString(cursorLineStyle.Width(width).Render(item) + "\n\n")
+			} else {
+				sb.WriteString(annotationDeleteStyle.Render(item) + "\n\n")
+			}
 
 		case annotation.Comment:
 			item = fmt.Sprintf("  [%s] COMMENT", rangeStr)
-			sb.WriteString(annotationCommentStyle.Render(item) + "\n")
+			if isSelected {
+				sb.WriteString(cursorLineStyle.Width(width).Render(item) + "\n")
+			} else {
+				sb.WriteString(annotationCommentStyle.Render(item) + "\n")
+			}
 			if a.Message != "" {
 				msg := fmt.Sprintf("  %q", a.Message)
 				sb.WriteString(dimStyle.Width(width).Render(msg) + "\n")
@@ -46,7 +52,11 @@ func renderAnnotationsPanel(m Model, width, height int) string {
 
 		case annotation.Replace:
 			item = fmt.Sprintf("  [%s] REPLACE", rangeStr)
-			sb.WriteString(annotationReplaceStyle.Render(item) + "\n")
+			if isSelected {
+				sb.WriteString(cursorLineStyle.Width(width).Render(item) + "\n")
+			} else {
+				sb.WriteString(annotationReplaceStyle.Render(item) + "\n")
+			}
 			if a.Message != "" {
 				msg := fmt.Sprintf("  %q", a.Message)
 				sb.WriteString(dimStyle.Width(width).Render(msg) + "\n")

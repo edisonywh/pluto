@@ -10,6 +10,7 @@ type hookSpecific struct {
 	HookEventName            string `json:"hookEventName"`
 	PermissionDecision       string `json:"permissionDecision"`
 	PermissionDecisionReason string `json:"permissionDecisionReason,omitempty"`
+	AdditionalContext        string `json:"additionalContext,omitempty"`
 }
 
 // AllowOutput returns the JSON string that tells Claude Code to allow the action.

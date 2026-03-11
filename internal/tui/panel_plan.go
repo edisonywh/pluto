@@ -12,7 +12,7 @@ import (
 func renderPlanPanel(m Model, width, height int) string {
 	lines := m.planLines
 	visibleStart := m.scrollOffset
-	visibleEnd := min(visibleStart+height, len(lines))
+	visibleEnd := min(visibleStart+height-2, len(lines)) // -1 title, -1 indicator
 
 	// Compute visual selection bounds (0-indexed, inclusive)
 	selStart, selEnd := -1, -1
@@ -70,7 +70,7 @@ func renderPlanPanel(m Model, width, height int) string {
 	}
 
 	// Scroll percentage indicator
-	if len(lines) > height {
+	if visibleEnd < len(lines) || visibleStart > 0 {
 		pct := 0
 		denom := len(lines) - height
 		if denom > 0 {

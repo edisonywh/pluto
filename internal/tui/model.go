@@ -17,6 +17,7 @@ const (
 	ModeVisualChar
 	ModeAnnotate
 	ModeDiff
+	ModeAnnotations
 )
 
 func (m Mode) String() string {
@@ -31,6 +32,8 @@ func (m Mode) String() string {
 		return "ANNOTATE"
 	case ModeDiff:
 		return "DIFF"
+	case ModeAnnotations:
+		return "ANNOTATIONS"
 	default:
 		return "UNKNOWN"
 	}
@@ -73,8 +76,9 @@ type Model struct {
 	visualStart  int // 0-indexed visual anchor
 
 	// Annotations
-	annotations    []annotation.Annotation
-	annotationType annotation.AnnotationType
+	annotations      []annotation.Annotation
+	annotationType   annotation.AnnotationType
+	annotationCursor int
 
 	// Current mode
 	mode Mode
@@ -164,4 +168,30 @@ func scrollToCursor(offset, cursor, height int) int {
 		return cursor - height + 1
 	}
 	return offset
+}
+
+// scrollToCursorWrapped keeps the cursor visible, accounting for line wrapping.
+// contentWidth is the available width for plan line text (excluding the 4-char prefix).
+func scrollToCursorWrapped(lines []string, offset, cursor, height, contentWidth int) int {
+	if cursor < offset {
+		return cursor // cursor above viewport, jump scroll offset to it
+	}
+	// Count visual (screen) lines from current offset to cursor (inclusive).
+	visualLines := 0
+	for i := offset; i <= cursor && i < len(lines); i++ {
+		visualLines += len(wrapLine(lines[i], contentWidth))
+	}
+	if visualLines <= height {
+		return offset // cursor is already visible
+	}
+	// Cursor is below viewport. Walk backwards from cursor to find new offset.
+	remaining := height
+	for i := cursor; i >= 0; i-- {
+		lh := len(wrapLine(lines[i], contentWidth))
+		if lh > remaining {
+			return i + 1 // line i doesn't fit; viewport starts at i+1
+		}
+		remaining -= lh
+	}
+	return 0
 }

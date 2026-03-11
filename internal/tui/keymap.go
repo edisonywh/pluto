@@ -4,29 +4,30 @@ import "github.com/charmbracelet/bubbles/key"
 
 // KeyMap holds all key bindings for pluto.
 type KeyMap struct {
-	Up          key.Binding
-	Down        key.Binding
-	Top         key.Binding
-	Bottom      key.Binding
-	HalfUp      key.Binding
-	HalfDown    key.Binding
-	WordForward key.Binding
-	WordBackward key.Binding
-	ParaDown    key.Binding
-	ParaUp      key.Binding
-	Visual      key.Binding
-	VisualLine  key.Binding
-	CharLeft    key.Binding
-	CharRight   key.Binding
-	Diff        key.Binding
-	Approve     key.Binding
-	Reject      key.Binding
-	Help        key.Binding
-	Comment     key.Binding
-	Delete      key.Binding
-	Replace     key.Binding
-	Cancel      key.Binding
-	Confirm     key.Binding
+	Up               key.Binding
+	Down             key.Binding
+	Top              key.Binding
+	Bottom           key.Binding
+	HalfUp           key.Binding
+	HalfDown         key.Binding
+	WordForward      key.Binding
+	WordBackward     key.Binding
+	ParaDown         key.Binding
+	ParaUp           key.Binding
+	Visual           key.Binding
+	VisualLine       key.Binding
+	CharLeft         key.Binding
+	CharRight        key.Binding
+	Diff             key.Binding
+	Approve          key.Binding
+	Reject           key.Binding
+	Help             key.Binding
+	Comment          key.Binding
+	Delete           key.Binding
+	Replace          key.Binding
+	Cancel           key.Binding
+	Confirm          key.Binding
+	FocusAnnotations key.Binding
 }
 
 // DefaultKeyMap returns the default vim-style key bindings.
@@ -124,12 +125,16 @@ func DefaultKeyMap() KeyMap {
 			key.WithKeys("enter"),
 			key.WithHelp("enter", "confirm"),
 		),
+		FocusAnnotations: key.NewBinding(
+			key.WithKeys("tab"),
+			key.WithHelp("tab", "focus annotations"),
+		),
 	}
 }
 
 // ShortHelp returns the abbreviated help binding list.
 func (k KeyMap) ShortHelp() []key.Binding {
-	return []key.Binding{k.Up, k.Down, k.Visual, k.Diff, k.Approve, k.Reject, k.Help}
+	return []key.Binding{k.Up, k.Down, k.Visual, k.Diff, k.Approve, k.Reject, k.FocusAnnotations, k.Help}
 }
 
 // FullHelp returns the grouped full help binding list.
@@ -138,6 +143,6 @@ func (k KeyMap) FullHelp() [][]key.Binding {
 		{k.Up, k.Down, k.Top, k.Bottom, k.HalfUp, k.HalfDown},
 		{k.WordForward, k.WordBackward, k.ParaDown, k.ParaUp},
 		{k.Visual, k.VisualLine, k.CharLeft, k.CharRight, k.Comment, k.Delete, k.Replace},
-		{k.Diff, k.Approve, k.Reject, k.Help, k.Cancel, k.Confirm},
+		{k.Diff, k.Approve, k.Reject, k.FocusAnnotations, k.Help, k.Cancel, k.Confirm},
 	}
 }

@@ -20,6 +20,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyMsg:
+		// Help overlay: highest priority key handling (not in text-input modes).
+		if msg.String() == "?" && m.mode != ModeAnnotate {
+			m.showHelp = !m.showHelp
+			return m, nil
+		}
+		if m.showHelp {
+			if msg.String() == "q" || msg.String() == "esc" {
+				m.showHelp = false
+			}
+			return m, nil
+		}
 		if m.mode == ModeAnnotate {
 			return m.handleAnnotateKey(msg)
 		}
@@ -48,12 +59,15 @@ func (m Model) handleModeKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleVisualCharKey(msg)
 	case ModeDiff:
 		return m.handleDiffKey(msg)
+	case ModeAnnotations:
+		return m.handleAnnotationsKey(msg)
 	}
 	return m, nil
 }
 
 func (m Model) handleNormalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	contentH := m.contentHeight()
+	contentW := m.contentWidth()
 	lastLine := len(m.planLines) - 1
 	keyStr := msg.String()
 
@@ -80,11 +94,11 @@ func (m Model) handleNormalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch {
 	case key.Matches(msg, m.keyMap.Down):
 		m.cursor = min(lastLine, m.cursor+count)
-		m.scrollOffset = scrollToCursor(m.scrollOffset, m.cursor, contentH)
+		m.scrollOffset = scrollToCursorWrapped(m.planLines, m.scrollOffset, m.cursor, contentH, contentW)
 
 	case key.Matches(msg, m.keyMap.Up):
 		m.cursor = max(0, m.cursor-count)
-		m.scrollOffset = scrollToCursor(m.scrollOffset, m.cursor, contentH)
+		m.scrollOffset = scrollToCursorWrapped(m.planLines, m.scrollOffset, m.cursor, contentH, contentW)
 
 	case key.Matches(msg, m.keyMap.Top):
 		m.cursor = 0
@@ -97,28 +111,28 @@ func (m Model) handleNormalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, m.keyMap.HalfDown):
 		half := contentH / 2
 		m.cursor = min(lastLine, m.cursor+half)
-		m.scrollOffset = scrollToCursor(m.scrollOffset, m.cursor, contentH)
+		m.scrollOffset = scrollToCursorWrapped(m.planLines, m.scrollOffset, m.cursor, contentH, contentW)
 
 	case key.Matches(msg, m.keyMap.HalfUp):
 		half := contentH / 2
 		m.cursor = max(0, m.cursor-half)
-		m.scrollOffset = scrollToCursor(m.scrollOffset, m.cursor, contentH)
+		m.scrollOffset = scrollToCursorWrapped(m.planLines, m.scrollOffset, m.cursor, contentH, contentW)
 
 	case key.Matches(msg, m.keyMap.WordForward):
 		m.cursor = nextNonBlank(m.planLines, m.cursor)
-		m.scrollOffset = scrollToCursor(m.scrollOffset, m.cursor, contentH)
+		m.scrollOffset = scrollToCursorWrapped(m.planLines, m.scrollOffset, m.cursor, contentH, contentW)
 
 	case key.Matches(msg, m.keyMap.WordBackward):
 		m.cursor = prevNonBlank(m.planLines, m.cursor)
-		m.scrollOffset = scrollToCursor(m.scrollOffset, m.cursor, contentH)
+		m.scrollOffset = scrollToCursorWrapped(m.planLines, m.scrollOffset, m.cursor, contentH, contentW)
 
 	case key.Matches(msg, m.keyMap.ParaDown):
 		m.cursor = nextParaBoundary(m.planLines, m.cursor)
-		m.scrollOffset = scrollToCursor(m.scrollOffset, m.cursor, contentH)
+		m.scrollOffset = scrollToCursorWrapped(m.planLines, m.scrollOffset, m.cursor, contentH, contentW)
 
 	case key.Matches(msg, m.keyMap.ParaUp):
 		m.cursor = prevParaBoundary(m.planLines, m.cursor)
-		m.scrollOffset = scrollToCursor(m.scrollOffset, m.cursor, contentH)
+		m.scrollOffset = scrollToCursorWrapped(m.planLines, m.scrollOffset, m.cursor, contentH, contentW)
 
 	case key.Matches(msg, m.keyMap.Visual):
 		m.mode = ModeVisualChar
@@ -143,10 +157,12 @@ func (m Model) handleNormalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.visualStart = m.cursor
 
 	case key.Matches(msg, m.keyMap.Diff):
-		if m.diffText != "" {
-			m.mode = ModeDiff
-			m.diffScrollOffset = 0
-		}
+		m.mode = ModeDiff
+		m.diffScrollOffset = 0
+
+	case key.Matches(msg, m.keyMap.FocusAnnotations):
+		m.mode = ModeAnnotations
+		m.annotationCursor = 0
 
 	case key.Matches(msg, m.keyMap.Approve):
 		m.result = Result{Decision: Approve}
@@ -156,8 +172,6 @@ func (m Model) handleNormalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.result = Result{Decision: Reject, Annotations: m.annotations}
 		return m, tea.Quit
 
-	case key.Matches(msg, m.keyMap.Help):
-		m.showHelp = !m.showHelp
 	}
 
 	return m, nil
@@ -165,6 +179,7 @@ func (m Model) handleNormalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 // handleOperatorMotion handles key presses while an operator (d/c/r) is pending.
 func (m Model) handleOperatorMotion(msg tea.KeyMsg, keyStr string, contentH, lastLine int) (tea.Model, tea.Cmd) {
+	contentW := m.contentWidth()
 	// Handle daw sub-sequence.
 	if m.pendingOp == "da" {
 		if keyStr == "w" {
@@ -216,7 +231,7 @@ func (m Model) handleOperatorMotion(msg tea.KeyMsg, keyStr string, contentH, las
 	case key.Matches(msg, m.keyMap.Down):
 		newCursor := min(lastLine, m.cursor+count)
 		m.cursor = newCursor
-		m.scrollOffset = scrollToCursor(m.scrollOffset, m.cursor, contentH)
+		m.scrollOffset = scrollToCursorWrapped(m.planLines, m.scrollOffset, m.cursor, contentH, contentW)
 		op := m.pendingOp
 		start := m.visualStart
 		m.pendingOp = ""
@@ -227,7 +242,7 @@ func (m Model) handleOperatorMotion(msg tea.KeyMsg, keyStr string, contentH, las
 	case key.Matches(msg, m.keyMap.Up):
 		newCursor := max(0, m.cursor-count)
 		m.cursor = newCursor
-		m.scrollOffset = scrollToCursor(m.scrollOffset, m.cursor, contentH)
+		m.scrollOffset = scrollToCursorWrapped(m.planLines, m.scrollOffset, m.cursor, contentH, contentW)
 		op := m.pendingOp
 		start := m.visualStart
 		m.pendingOp = ""
@@ -251,7 +266,7 @@ func (m Model) handleOperatorMotion(msg tea.KeyMsg, keyStr string, contentH, las
 			newCursor = nextNonBlank(m.planLines, newCursor)
 		}
 		m.cursor = newCursor
-		m.scrollOffset = scrollToCursor(m.scrollOffset, m.cursor, contentH)
+		m.scrollOffset = scrollToCursorWrapped(m.planLines, m.scrollOffset, m.cursor, contentH, contentW)
 		op := m.pendingOp
 		start := m.visualStart
 		m.pendingOp = ""
@@ -265,7 +280,7 @@ func (m Model) handleOperatorMotion(msg tea.KeyMsg, keyStr string, contentH, las
 			newCursor = prevNonBlank(m.planLines, newCursor)
 		}
 		m.cursor = newCursor
-		m.scrollOffset = scrollToCursor(m.scrollOffset, m.cursor, contentH)
+		m.scrollOffset = scrollToCursorWrapped(m.planLines, m.scrollOffset, m.cursor, contentH, contentW)
 		op := m.pendingOp
 		start := m.visualStart
 		m.pendingOp = ""
@@ -281,9 +296,10 @@ func (m Model) handleOperatorMotion(msg tea.KeyMsg, keyStr string, contentH, las
 
 // applyOperator fires the accumulated operator over [rangeStart, rangeEnd].
 func (m Model) applyOperator(op string, rangeStart, rangeEnd, contentH, lastLine int) (tea.Model, tea.Cmd) {
+	contentW := m.contentWidth()
 	m.visualStart = rangeStart
 	m.cursor = rangeEnd
-	m.scrollOffset = scrollToCursor(m.scrollOffset, m.cursor, contentH)
+	m.scrollOffset = scrollToCursorWrapped(m.planLines, m.scrollOffset, m.cursor, contentH, contentW)
 	r := visualRange(rangeStart, rangeEnd)
 
 	switch op {
@@ -314,36 +330,37 @@ func (m Model) applyOperator(op string, rangeStart, rangeEnd, contentH, lastLine
 
 func (m Model) handleVisualKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	contentH := m.contentHeight()
+	contentW := m.contentWidth()
 	lastLine := len(m.planLines) - 1
 
 	switch {
 	case key.Matches(msg, m.keyMap.Down):
 		if m.cursor < lastLine {
 			m.cursor++
-			m.scrollOffset = scrollToCursor(m.scrollOffset, m.cursor, contentH)
+			m.scrollOffset = scrollToCursorWrapped(m.planLines, m.scrollOffset, m.cursor, contentH, contentW)
 		}
 
 	case key.Matches(msg, m.keyMap.Up):
 		if m.cursor > 0 {
 			m.cursor--
-			m.scrollOffset = scrollToCursor(m.scrollOffset, m.cursor, contentH)
+			m.scrollOffset = scrollToCursorWrapped(m.planLines, m.scrollOffset, m.cursor, contentH, contentW)
 		}
 
 	case key.Matches(msg, m.keyMap.WordForward):
 		m.cursor = nextNonBlank(m.planLines, m.cursor)
-		m.scrollOffset = scrollToCursor(m.scrollOffset, m.cursor, contentH)
+		m.scrollOffset = scrollToCursorWrapped(m.planLines, m.scrollOffset, m.cursor, contentH, contentW)
 
 	case key.Matches(msg, m.keyMap.WordBackward):
 		m.cursor = prevNonBlank(m.planLines, m.cursor)
-		m.scrollOffset = scrollToCursor(m.scrollOffset, m.cursor, contentH)
+		m.scrollOffset = scrollToCursorWrapped(m.planLines, m.scrollOffset, m.cursor, contentH, contentW)
 
 	case key.Matches(msg, m.keyMap.ParaDown):
 		m.cursor = nextParaBoundary(m.planLines, m.cursor)
-		m.scrollOffset = scrollToCursor(m.scrollOffset, m.cursor, contentH)
+		m.scrollOffset = scrollToCursorWrapped(m.planLines, m.scrollOffset, m.cursor, contentH, contentW)
 
 	case key.Matches(msg, m.keyMap.ParaUp):
 		m.cursor = prevParaBoundary(m.planLines, m.cursor)
-		m.scrollOffset = scrollToCursor(m.scrollOffset, m.cursor, contentH)
+		m.scrollOffset = scrollToCursorWrapped(m.planLines, m.scrollOffset, m.cursor, contentH, contentW)
 
 	case key.Matches(msg, m.keyMap.Bottom):
 		m.cursor = lastLine
@@ -412,6 +429,57 @@ func (m Model) handleAnnotateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 }
 
+func (m Model) handleAnnotationsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	keyStr := msg.String()
+
+	// Handle dd sub-sequence.
+	if m.pendingOp == "d" {
+		m.pendingOp = ""
+		if keyStr == "d" {
+			return m.deleteAnnotation()
+		}
+		return m, nil
+	}
+
+	if len(m.annotations) == 0 {
+		// Only tab/esc are useful when there are no annotations.
+		if key.Matches(msg, m.keyMap.FocusAnnotations) || key.Matches(msg, m.keyMap.Cancel) {
+			m.mode = ModeNormal
+		}
+		return m, nil
+	}
+
+	switch {
+	case key.Matches(msg, m.keyMap.Down):
+		m.annotationCursor = min(len(m.annotations)-1, m.annotationCursor+1)
+
+	case key.Matches(msg, m.keyMap.Up):
+		m.annotationCursor = max(0, m.annotationCursor-1)
+
+	case key.Matches(msg, m.keyMap.Delete): // x
+		return m.deleteAnnotation()
+
+	case keyStr == "d":
+		m.pendingOp = "d"
+
+	case key.Matches(msg, m.keyMap.FocusAnnotations), key.Matches(msg, m.keyMap.Cancel):
+		m.pendingOp = ""
+		m.mode = ModeNormal
+	}
+
+	return m, nil
+}
+
+func (m Model) deleteAnnotation() (tea.Model, tea.Cmd) {
+	if m.annotationCursor < len(m.annotations) {
+		m.annotations = append(m.annotations[:m.annotationCursor], m.annotations[m.annotationCursor+1:]...)
+	}
+	if len(m.annotations) > 0 && m.annotationCursor >= len(m.annotations) {
+		m.annotationCursor = len(m.annotations) - 1
+	}
+	return m, nil
+}
+
 func (m Model) handleDiffKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	diffLineCount := len(m.diffLines)
 	contentH := m.contentHeight()
@@ -437,6 +505,7 @@ func (m Model) handleDiffKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 func (m Model) handleVisualCharKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	contentH := m.contentHeight()
+	contentW := m.contentWidth()
 	lastLine := len(m.planLines) - 1
 
 	var line string
@@ -471,7 +540,7 @@ func (m Model) handleVisualCharKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.visualStart = m.cursor
 		if m.cursor < lastLine {
 			m.cursor++
-			m.scrollOffset = scrollToCursor(m.scrollOffset, m.cursor, contentH)
+			m.scrollOffset = scrollToCursorWrapped(m.planLines, m.scrollOffset, m.cursor, contentH, contentW)
 		}
 
 	case key.Matches(msg, m.keyMap.Up):
@@ -480,7 +549,7 @@ func (m Model) handleVisualCharKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.visualStart = m.cursor
 		if m.cursor > 0 {
 			m.cursor--
-			m.scrollOffset = scrollToCursor(m.scrollOffset, m.cursor, contentH)
+			m.scrollOffset = scrollToCursorWrapped(m.planLines, m.scrollOffset, m.cursor, contentH, contentW)
 		}
 
 	case key.Matches(msg, m.keyMap.Comment):
@@ -562,6 +631,16 @@ func (m Model) contentHeight() int {
 		return 10 // safe fallback before first WindowSizeMsg
 	}
 	return h
+}
+
+// contentWidth returns the available text width inside the plan panel.
+// It mirrors view.go's leftWidth = windowWidth*3/5, minus the 4-char line-number prefix.
+func (m Model) contentWidth() int {
+	w := m.windowWidth*3/5 - 4
+	if w < 1 {
+		return 40 // safe fallback before first WindowSizeMsg
+	}
+	return w
 }
 
 // nextNonBlank returns the index of the next non-blank line after cursor.

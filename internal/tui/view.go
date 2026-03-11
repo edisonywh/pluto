@@ -13,6 +13,12 @@ func (m Model) View() string {
 		return "Loading pluto...\n"
 	}
 
+	if m.showHelp {
+		return lipgloss.Place(m.windowWidth, m.windowHeight,
+			lipgloss.Center, lipgloss.Center,
+			helpOverlayView())
+	}
+
 	header := m.renderHeader()
 	footer := m.renderFooter()
 
@@ -86,18 +92,71 @@ func (m Model) renderFooter() string {
 		return annotateBarStyle.Width(m.windowWidth).Render(label + m.textInput.View())
 	}
 
-	if m.showHelp {
-		return helpStyle(m).Width(m.windowWidth).Render(m.renderHelp())
-	}
 	return m.renderStatusBar()
 }
 
-func helpStyle(m Model) lipgloss.Style {
-	_ = m
+func helpOverlayView() string {
+	title := lipgloss.NewStyle().Bold(true).Foreground(colorHeader).Render("Key Bindings") +
+		dimStyle.Render("  (? / q / esc to close)")
+
+	section := func(s string) string {
+		return lipgloss.NewStyle().Bold(true).Foreground(colorAnnotation).Render(s)
+	}
+	entry := func(keys, desc string) string {
+		k := lipgloss.NewStyle().Foreground(lipgloss.Color("255")).Width(20).Render(keys)
+		return k + dimStyle.Render(desc)
+	}
+
+	left := strings.Join([]string{
+		section("Navigation"),
+		entry("k / ↑", "up"),
+		entry("j / ↓", "down"),
+		entry("g", "top"),
+		entry("G", "bottom"),
+		entry("ctrl+u / ctrl+d", "half page up/down"),
+		entry("w / b", "next/prev non-blank"),
+		entry("{ / }", "paragraph boundary"),
+		"",
+		section("Review"),
+		entry("D", "toggle diff"),
+		entry("A", "approve plan"),
+		entry("R", "reject with annotations"),
+		entry("?", "toggle this help"),
+	}, "\n")
+
+	right := strings.Join([]string{
+		section("Line Select  (V)"),
+		entry("j / k  w / b  { / }", "extend selection"),
+		entry("c", "comment on lines"),
+		entry("x", "delete lines"),
+		entry("r", "replace lines"),
+		entry("esc", "cancel"),
+		"",
+		section("Char Select  (v)"),
+		entry("h / l  w / b", "extend selection"),
+		entry("c / r", "comment / replace"),
+		entry("x", "delete text"),
+		"",
+		section("Operators  (normal mode)"),
+		entry("d / c / r + motion", "delete / comment / replace"),
+		entry("dd / cc / rr", "current line"),
+		entry("daw", "delete word"),
+		"",
+		section("Annotations Pane  (tab)"),
+		entry("j / k", "navigate"),
+		entry("x / dd", "delete annotation"),
+		entry("tab / esc", "back to plan"),
+	}, "\n")
+
+	leftCol := lipgloss.NewStyle().Width(44).Render(left)
+	rightCol := lipgloss.NewStyle().Width(44).Render(right)
+	body := lipgloss.JoinHorizontal(lipgloss.Top, leftCol, rightCol)
+
 	return lipgloss.NewStyle().
-		Background(lipgloss.Color("235")).
-		Foreground(colorDim).
-		Padding(0, 1)
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(colorHeader).
+		Padding(1, 2).
+		Render(title + "\n\n" + body)
 }
 
 func (m Model) renderStatusBar() string {
@@ -115,24 +174,14 @@ func (m Model) renderStatusBar() string {
 		bindings = "  h/l:char  w/b:word  c:comment  x:delete  r:replace  j/k:→line  esc:cancel"
 	case ModeDiff:
 		bindings = "  k/j:scroll  D/esc:back to plan"
+	case ModeAnnotations:
+		bindings = "  k/j:move  x/dd:delete  tab/esc:back"
 	default:
 		bindings = ""
 	}
 	return statusBarStyle.Width(m.windowWidth).Render(bindings)
 }
 
-func (m Model) renderHelp() string {
-	var rows []string
-	for _, group := range m.keyMap.FullHelp() {
-		var parts []string
-		for _, b := range group {
-			h := b.Help()
-			parts = append(parts, helpKeyStyle.Render(h.Key)+helpDescStyle.Render(":"+h.Desc))
-		}
-		rows = append(rows, strings.Join(parts, "  "))
-	}
-	return strings.Join(rows, "\n")
-}
 
 // ensureHeight splits content into lines and pads/trims to exactly height lines.
 func ensureHeight(content string, height int) []string {
