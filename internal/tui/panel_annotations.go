@@ -17,9 +17,13 @@ func renderAnnotationsPanel(m Model, width, height int) string {
 	sb.WriteString("\n")
 
 	if count == 0 {
-		sb.WriteString(dimStyle.Render("  No annotations yet.\n"))
-		sb.WriteString(dimStyle.Render("  v → select lines\n"))
-		sb.WriteString(dimStyle.Render("  c/x/r → annotate\n"))
+		sb.WriteString(dimStyle.Render("  No annotations yet.") + "\n")
+		sb.WriteString("\n")
+		hint := func(key, desc string) string {
+			return dimStyle.Render(fmt.Sprintf("  %-7s %s", key, desc))
+		}
+		sb.WriteString(hint("v", "select lines") + "\n")
+		sb.WriteString(hint("c/x/r", "annotate") + "\n")
 		return sb.String()
 	}
 

@@ -21,6 +21,10 @@ func renderDiffPanel(diffLines []string, scrollOffset, width, height int) string
 
 	for i := visibleStart; i < visibleEnd; i++ {
 		line := diffLines[i]
+		// Truncate lines that exceed the panel width before applying ANSI styles.
+		if runes := []rune(line); len(runes) > width {
+			line = string(runes[:width-1]) + "…"
+		}
 		var rendered string
 		switch {
 		case strings.HasPrefix(line, "+++") || strings.HasPrefix(line, "---"):
