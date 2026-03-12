@@ -178,6 +178,9 @@ func (m Model) handleNormalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.mode = ModeAnnotations
 		m.annotationCursor = 0
 
+	case keyStr == "q":
+		return m, tea.Quit
+
 	case key.Matches(msg, m.keyMap.Approve):
 		m.result = Result{Decision: Approve}
 		return m, tea.Quit

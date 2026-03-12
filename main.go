@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -161,9 +162,12 @@ func runListMode() {
 		if prevEntry != nil {
 			prevPath = filepath.Join(sessionPath, prevEntry.Name())
 		}
+		latestPath := filepath.Join(sessionPath, latestEntry.Name())
+		title := planTitle(latestPath)
 		files = append(files, tui.PlanFile{
 			Name:     session.Name(),
-			Path:     filepath.Join(sessionPath, latestEntry.Name()),
+			Title:    title,
+			Path:     latestPath,
 			PrevPath: prevPath,
 			ModTime:  info.ModTime(),
 		})
@@ -224,6 +228,21 @@ func runListMode() {
 		tea.WithAltScreen(),
 	)
 	p2.Run()
+}
+
+// planTitle reads the first non-empty line of a plan file for display in the list.
+func planTitle(path string) string {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	for _, line := range strings.SplitN(string(data), "\n", 20) {
+		line = strings.TrimSpace(line)
+		if line != "" {
+			return strings.TrimLeft(line, "# ")
+		}
+	}
+	return ""
 }
 
 func runHookMode() {

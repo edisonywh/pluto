@@ -11,6 +11,7 @@ import (
 // PlanFile holds metadata for a plan file in the ~/.claude/plans directory.
 type PlanFile struct {
 	Name     string
+	Title    string // first non-empty line of the plan, for display
 	Path     string
 	PrevPath string // second-to-last revision, empty if only one exists
 	ModTime  time.Time
@@ -95,18 +96,24 @@ func (m ListModel) View() string {
 		}
 
 		for i, f := range m.files {
-			name := strings.TrimSuffix(f.Name, ".md")
-			if len(name) > nameWidth {
-				name = name[:nameWidth-1] + "…"
+			label := f.Title
+			if label == "" {
+				label = f.Name
+			}
+			if len(label) > nameWidth {
+				label = label[:nameWidth-1] + "…"
 			}
 			age := fmt.Sprintf("%-*s", ageWidth, relativeTime(f.ModTime))
 
 			if i == m.cursor {
-				line := fmt.Sprintf("  ▶  %-*s  %s", nameWidth, name, age)
+				line := fmt.Sprintf("  ▶  %-*s  %s", nameWidth, label, age)
 				sb.WriteString(cursorLineStyle.Width(m.windowWidth).Render(line) + "\n")
+				sub := fmt.Sprintf("       %s", f.Name)
+				sb.WriteString(dimStyle.Render(sub) + "\n")
 			} else {
-				line := fmt.Sprintf("     %-*s  ", nameWidth, name)
+				line := fmt.Sprintf("     %-*s  ", nameWidth, label)
 				sb.WriteString(line + dimStyle.Render(age) + "\n")
+				sb.WriteString("\n")
 			}
 		}
 

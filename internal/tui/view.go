@@ -171,7 +171,7 @@ func (m Model) renderStatusBar() string {
 		if m.pendingOp != "" {
 			bindings = fmt.Sprintf("  [%s%s_]  j/k/w/b/G:range  esc:cancel", m.pendingOp, m.countStr)
 		} else {
-			bindings = "  k/j:scroll  w/b:word  {/}:para  v:char-select  V:line-select  d/c/r:op  D:diff  u:undo  A:approve  R:reject  ?:help"
+			bindings = "  k/j:scroll  w/b:word  {/}:para  v:char-select  V:line-select  d/c/r:op  D:diff  u:undo  A:approve  R:reject  q:quit  ?:help"
 		}
 	case ModeVisual:
 		bindings = "  k/j/w/b/{/}:extend  c:comment  x/d:delete  r:replace  esc:cancel"
