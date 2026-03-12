@@ -142,10 +142,11 @@ func runListMode() {
 		if err != nil {
 			continue
 		}
-		// Find the last non-dir entry (highest numbered revision).
-		var latestEntry os.DirEntry
+		// Find the last two non-dir entries (latest and previous revision).
+		var prevEntry, latestEntry os.DirEntry
 		for _, rev := range revisions {
 			if !rev.IsDir() {
+				prevEntry = latestEntry
 				latestEntry = rev
 			}
 		}
@@ -156,10 +157,15 @@ func runListMode() {
 		if err != nil {
 			continue
 		}
+		prevPath := ""
+		if prevEntry != nil {
+			prevPath = filepath.Join(sessionPath, prevEntry.Name())
+		}
 		files = append(files, tui.PlanFile{
-			Name:    session.Name(),
-			Path:    filepath.Join(sessionPath, latestEntry.Name()),
-			ModTime: info.ModTime(),
+			Name:     session.Name(),
+			Path:     filepath.Join(sessionPath, latestEntry.Name()),
+			PrevPath: prevPath,
+			ModTime:  info.ModTime(),
 		})
 	}
 
@@ -187,9 +193,37 @@ func runListMode() {
 	}
 
 	selected := finalModel.(tui.ListModel).Selected()
-	if selected != "" {
-		runStandaloneMode(selected)
+	if selected.Path == "" {
+		return
 	}
+
+	planData, err := os.ReadFile(selected.Path)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "pluto: %v\n", err)
+		os.Exit(1)
+	}
+	diffText := ""
+	if selected.PrevPath != "" {
+		prevData, err := os.ReadFile(selected.PrevPath)
+		if err == nil {
+			diffText = diff.Compute(string(prevData), string(planData))
+		}
+	}
+
+	tty2, err := os.OpenFile("/dev/tty", os.O_RDWR, 0)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "pluto: cannot open /dev/tty")
+		os.Exit(1)
+	}
+	defer tty2.Close()
+
+	m := tui.NewModel(string(planData), diffText, selected.Name)
+	p2 := tea.NewProgram(m,
+		tea.WithInput(tty2),
+		tea.WithOutput(tty2),
+		tea.WithAltScreen(),
+	)
+	p2.Run()
 }
 
 func runHookMode() {

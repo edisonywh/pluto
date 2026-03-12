@@ -10,16 +10,17 @@ import (
 
 // PlanFile holds metadata for a plan file in the ~/.claude/plans directory.
 type PlanFile struct {
-	Name    string
-	Path    string
-	ModTime time.Time
+	Name     string
+	Path     string
+	PrevPath string // second-to-last revision, empty if only one exists
+	ModTime  time.Time
 }
 
 // ListModel is a bubbletea model for interactively selecting a plan file to review.
 type ListModel struct {
 	files        []PlanFile
 	cursor       int
-	selected     string
+	selected     PlanFile
 	windowWidth  int
 	windowHeight int
 }
@@ -29,8 +30,8 @@ func NewListModel(files []PlanFile) ListModel {
 	return ListModel{files: files}
 }
 
-// Selected returns the path chosen by the user, or "" if the user quit without selecting.
-func (m ListModel) Selected() string {
+// Selected returns the chosen PlanFile, or a zero value if the user quit without selecting.
+func (m ListModel) Selected() PlanFile {
 	return m.selected
 }
 
@@ -59,7 +60,7 @@ func (m ListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		case "enter":
 			if len(m.files) > 0 {
-				m.selected = m.files[m.cursor].Path
+				m.selected = m.files[m.cursor]
 				return m, tea.Quit
 			}
 		}
