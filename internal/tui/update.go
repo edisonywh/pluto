@@ -500,20 +500,32 @@ func (m Model) deleteAnnotation() (tea.Model, tea.Cmd) {
 func (m Model) handleDiffKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	diffLineCount := len(m.diffLines)
 	contentH := m.contentHeight()
+	keyStr := msg.String()
+
+	// Digit accumulation.
+	if keyStr >= "1" && keyStr <= "9" || (keyStr == "0" && m.countStr != "") {
+		m.countStr += keyStr
+		return m, nil
+	}
+
+	count := 1
+	if m.countStr != "" {
+		if n, err := strconv.Atoi(m.countStr); err == nil && n > 0 {
+			count = n
+		}
+		m.countStr = ""
+	}
 
 	switch {
 	case key.Matches(msg, m.keyMap.Down):
 		maxOffset := max(0, diffLineCount-contentH)
-		if m.diffScrollOffset < maxOffset {
-			m.diffScrollOffset++
-		}
+		m.diffScrollOffset = min(maxOffset, m.diffScrollOffset+count)
 
 	case key.Matches(msg, m.keyMap.Up):
-		if m.diffScrollOffset > 0 {
-			m.diffScrollOffset--
-		}
+		m.diffScrollOffset = max(0, m.diffScrollOffset-count)
 
 	case key.Matches(msg, m.keyMap.Diff), key.Matches(msg, m.keyMap.Cancel):
+		m.countStr = ""
 		m.mode = ModeNormal
 	}
 
